@@ -20,7 +20,7 @@ export default function Home() {
               <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                 <span className="text-white font-bold text-xl">T</span>
               </div>
-              <span className="text-2xl font-bold text-gray-900 group-hover:text-black transition-colors duration-300">Talentium</span>
+              <span className="text-2xl font-bold text-gray-900 group-hover:text-black transition-colors duration-300">Job Chain</span>
             </div>
 
             {/* Navigation */}

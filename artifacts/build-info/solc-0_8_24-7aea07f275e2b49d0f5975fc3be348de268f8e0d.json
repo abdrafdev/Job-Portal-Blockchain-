@@ -1,0 +1,35 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-7aea07f275e2b49d0f5975fc3be348de268f8e0d",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "userSourceNameMap": {
+    "contracts/JobPortal.sol": "project/contracts/JobPortal.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/JobPortal.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\n/// @title JobPortal\r\n/// @notice University-demo smart contract for a decentralized job portal.\r\n/// @dev Stores roles, jobs, applications, and application status on-chain.\r\ncontract JobPortal {\r\n  enum Role {\r\n    None,\r\n    JobSeeker,\r\n    Employer,\r\n    Validator\r\n  }\r\n\r\n  enum ApplicationStatus {\r\n    None,\r\n    Applied,\r\n    Shortlisted,\r\n    Accepted,\r\n    Rejected\r\n  }\r\n\r\n  struct Job {\r\n    address employer;\r\n    string title;\r\n    string company;\r\n    string location;\r\n    string jobType;\r\n    string descriptionCID;\r\n    uint64 createdAt;\r\n    bool isOpen;\r\n  }\r\n\r\n  struct Application {\r\n    string resumeCID;\r\n    uint64 appliedAt;\r\n    ApplicationStatus status;\r\n  }\r\n\r\n  mapping(address => Role) private _roles;\r\n\r\n  Job[] private _jobs;\r\n\r\n  // jobId => applicant => application\r\n  mapping(uint256 => mapping(address => Application)) private _applications;\r\n\r\n  // jobId => list of applicant addresses (for employer UI)\r\n  mapping(uint256 => address[]) private _applicantsByJob;\r\n\r\n  // applicant => list of jobIds they applied to (for job seeker UI)\r\n  mapping(address => uint256[]) private _appliedJobIdsByApplicant;\r\n\r\n  event RoleRegistered(address indexed user, Role role);\r\n  event JobCreated(uint256 indexed jobId, address indexed employer);\r\n  event JobClosed(uint256 indexed jobId, address indexed employer);\r\n  event Applied(uint256 indexed jobId, address indexed applicant, string resumeCID);\r\n  event ApplicationStatusChanged(\r\n    uint256 indexed jobId,\r\n    address indexed applicant,\r\n    ApplicationStatus status\r\n  );\r\n\r\n  error JobNotFound();\r\n  error NotAuthorized();\r\n  error InvalidRole();\r\n  error InvalidStatus();\r\n  error JobClosedAlready();\r\n  error JobIsClosed();\r\n  error EmptyResumeCID();\r\n  error AlreadyApplied();\r\n  error NoApplication();\r\n\r\n  modifier onlyRole(Role requiredRole) {\r\n    if (_roles[msg.sender] != requiredRole) revert NotAuthorized();\r\n    _;\r\n  }\r\n\r\n  modifier jobExists(uint256 jobId) {\r\n    if (jobId >= _jobs.length) revert JobNotFound();\r\n    _;\r\n  }\r\n\r\n  /// @notice Register or update your role for the dApp.\r\n  /// @dev For demo simplicity, a wallet can change roles by calling register again.\r\n  function register(Role role) external {\r\n    if (role == Role.None) revert InvalidRole();\r\n    _roles[msg.sender] = role;\r\n    emit RoleRegistered(msg.sender, role);\r\n  }\r\n\r\n  function getRole(address user) external view returns (Role) {\r\n    return _roles[user];\r\n  }\r\n\r\n  function createJob(\r\n    string calldata title,\r\n    string calldata company,\r\n    string calldata location,\r\n    string calldata jobType,\r\n    string calldata descriptionCID\r\n  ) external onlyRole(Role.Employer) returns (uint256 jobId) {\r\n    Job memory job = Job({\r\n      employer: msg.sender,\r\n      title: title,\r\n      company: company,\r\n      location: location,\r\n      jobType: jobType,\r\n      descriptionCID: descriptionCID,\r\n      createdAt: uint64(block.timestamp),\r\n      isOpen: true\r\n    });\r\n\r\n    _jobs.push(job);\r\n    jobId = _jobs.length - 1;\r\n\r\n    emit JobCreated(jobId, msg.sender);\r\n  }\r\n\r\n  function closeJob(uint256 jobId) external onlyRole(Role.Employer) jobExists(jobId) {\r\n    Job storage job = _jobs[jobId];\r\n\r\n    if (job.employer != msg.sender) revert NotAuthorized();\r\n    if (!job.isOpen) revert JobClosedAlready();\r\n\r\n    job.isOpen = false;\r\n    emit JobClosed(jobId, msg.sender);\r\n  }\r\n\r\n  function getJobsCount() external view returns (uint256) {\r\n    return _jobs.length;\r\n  }\r\n\r\n  function getJob(uint256 jobId) external view jobExists(jobId) returns (Job memory) {\r\n    return _jobs[jobId];\r\n  }\r\n\r\n  function applyToJob(uint256 jobId, string calldata resumeCID)\r\n    external\r\n    onlyRole(Role.JobSeeker)\r\n    jobExists(jobId)\r\n  {\r\n    Job storage job = _jobs[jobId];\r\n    if (!job.isOpen) revert JobIsClosed();\r\n    if (bytes(resumeCID).length == 0) revert EmptyResumeCID();\r\n\r\n    Application storage existing = _applications[jobId][msg.sender];\r\n    if (existing.status != ApplicationStatus.None) revert AlreadyApplied();\r\n\r\n    _applications[jobId][msg.sender] = Application({\r\n      resumeCID: resumeCID,\r\n      appliedAt: uint64(block.timestamp),\r\n      status: ApplicationStatus.Applied\r\n    });\r\n\r\n    _applicantsByJob[jobId].push(msg.sender);\r\n    _appliedJobIdsByApplicant[msg.sender].push(jobId);\r\n\r\n    emit Applied(jobId, msg.sender, resumeCID);\r\n  }\r\n\r\n  function setApplicationStatus(\r\n    uint256 jobId,\r\n    address applicant,\r\n    ApplicationStatus status\r\n  ) external onlyRole(Role.Employer) jobExists(jobId) {\r\n    if (status == ApplicationStatus.None) revert InvalidStatus();\r\n\r\n    Job storage job = _jobs[jobId];\r\n    if (job.employer != msg.sender) revert NotAuthorized();\r\n\r\n    Application storage app = _applications[jobId][applicant];\r\n    if (app.status == ApplicationStatus.None) revert NoApplication();\r\n\r\n    app.status = status;\r\n\r\n    emit ApplicationStatusChanged(jobId, applicant, status);\r\n  }\r\n\r\n  function getJobApplicants(uint256 jobId)\r\n    external\r\n    view\r\n    jobExists(jobId)\r\n    returns (address[] memory)\r\n  {\r\n    return _applicantsByJob[jobId];\r\n  }\r\n\r\n  function getApplication(uint256 jobId, address applicant)\r\n    external\r\n    view\r\n    jobExists(jobId)\r\n    returns (Application memory)\r\n  {\r\n    return _applications[jobId][applicant];\r\n  }\r\n\r\n  function getMyAppliedJobs(address applicant) external view returns (uint256[] memory) {\r\n    return _appliedJobIdsByApplicant[applicant];\r\n  }\r\n}\r\n"
+      }
+    }
+  }
+}

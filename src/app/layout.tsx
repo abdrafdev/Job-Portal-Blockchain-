@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Talentium - Decentralized Job Portal",
+  title: "Job Chain - Decentralized Job Portal",
   description:
     "Web3-powered hiring platform with blockchain verification, IPFS storage, and transparent recruitment.",
 };
